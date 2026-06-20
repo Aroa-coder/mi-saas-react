@@ -1,125 +1,116 @@
 // ==========================================
-// COMPONENTE: ChatArea (Zona derecha principal)
+// COMPONENTE: GeneradorWeb (BloomPage AI)
 // ==========================================
 
 import { useState } from 'react';
-import Mensaje from './Mensaje';
 
-function ChatArea() {
-  
-  // ==========================================
-  // 🧠 ZONA DE MEMORIA (ESTADOS)
-  // ==========================================
-  
-  const [textoInput, setTextoInput] = useState("");
-
-  const [listaMensajes, setListaMensajes] = useState([
-    { rol: "ia", texto: "¡Hola! Soy IA Master. Conectado a la velocidad de Groq. ¿En qué te ayudo hoy?" }
-  ]);
+function GeneradorWeb() {
 
   // ==========================================
-  // ⚙️ ZONA DE LÓGICA (ACCIONES - GROQ API)
+  // 🧠 ESTADOS
   // ==========================================
-  
-  const manejarEnvio = async (evento) => {
+
+  const [descripcion, setDescripcion] = useState("");
+  const [estado, setEstado] = useState("idle"); 
+  const [htmlGenerado, setHtmlGenerado] = useState("");
+  const [error, setError] = useState("");
+
+  // ==========================================
+  // ⚙️ LÓGICA: GENERAR WEB CON GROQ
+  // ==========================================
+
+  const generarWeb = async (evento) => {
     evento.preventDefault();
-    if (textoInput.trim() === "") return;
+    if (descripcion.trim() === "") return;
 
-    // 1. Guardamos el texto del usuario
-    const promptUsuario = textoInput;
-    const mensajeUsuario = { rol: "usuario", texto: promptUsuario };
-    
-    // Mostramos el mensaje del usuario inmediatamente y el "Pensando..."
-    setListaMensajes([...listaMensajes, mensajeUsuario, { rol: "ia", texto: "Procesando a la velocidad de la luz..." }]);
-    setTextoInput(""); 
+    setEstado("cargando");
+    setError("");
+    setHtmlGenerado("");
 
     try {
-      // 2. CONEXIÓN AL CEREBRO DE GROQ
-      // ⚠️ IMPORTANTE: Pega aquí tu API Key de Groq (suele empezar por 'gsk_')
-  
-      //OJO - Cambiamos el texto en duro por la lectura variable de entorno de vite
       const API_KEY = import.meta.env.VITE_GROQ_API_KEY;
       const URL = "https://api.groq.com/openai/v1/chat/completions";
+
       const respuesta = await fetch(URL, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
-          // Groq exige que la clave vaya aquí, como un "Bearer token"
           "Authorization": `Bearer ${API_KEY}` 
         },
         body: JSON.stringify({
-          model: "llama-3.1-8b-instant", // Modelo de código abierto ultra rápido
+          model: "llama-3.1-8b-instant",
           messages: [
-            // Le damos algo de contexto inicial
-            { role: "system", content: "Eres un asistente experto en programación web y React. Responde en español de forma clara y concisa." },
-            // Le enviamos la pregunta del usuario
-            { role: "user", content: promptUsuario }
+            {
+              role: "system",
+              content: `
+Eres BloomPage AI, un generador profesional de landing pages.
+Devuelves SIEMPRE código HTML completo, limpio, bonito y moderno.
+Usa colores suaves, tipografías elegantes y estructura profesional.
+NO expliques nada. SOLO devuelve el HTML final.
+              `
+            },
+            { role: "user", content: descripcion }
           ],
-          temperature: 0.7 // Nivel de creatividad
+          temperature: 0.6
         })
       });
 
       const datos = await respuesta.json();
-      
-      // Escudo de seguridad por si falla la clave
+
       if (!respuesta.ok) {
-        console.error("Error de Groq:", datos);
-        throw new Error(datos.error?.message || "La API de Groq rechazó la conexión");
+        throw new Error(datos.error?.message || "Error generando la web");
       }
 
-      // 3. EXTRAEMOS LA RESPUESTA DE GROQ
-      // La ruta para encontrar el texto en Groq/OpenAI es esta:
-      const textoIA = datos.choices[0].message.content;
-      const mensajeIA = { rol: "ia", texto: textoIA };
-      
-      // 4. ACTUALIZAMOS LA PANTALLA
-      setListaMensajes((listaActual) => {
-        const listaSinPensando = listaActual.slice(0, -1);
-        return [...listaSinPensando, mensajeIA];
-      });
+      const html = datos.choices[0].message.content;
+      setHtmlGenerado(html);
+      setEstado("listo");
 
-    } catch (error) {
-      console.error("Error conectando con Groq:", error);
-      
-      setListaMensajes((listaActual) => {
-        const listaSinPensando = listaActual.slice(0, -1);
-        return [...listaSinPensando, { rol: "ia", texto: `❌ Error neuronal: ${error.message}` }];
-      });
+    } catch (err) {
+      setError(err.message);
+      setEstado("error");
     }
   };
 
   // ==========================================
-  // 🎨 ZONA VISUAL (LO QUE VE EL USUARIO)
+  // 🎨 VISUAL
   // ==========================================
+
   return (
-    <main className="chat-area">
-      
-      <section className="mensajes-container" id="caja-mensajes">
-        {listaMensajes.map((msg, indice) => (
-          <Mensaje 
-            key={indice} 
-            rol={msg.rol} 
-            texto={msg.texto} 
-          />
-        ))}
+    <main className="generador-web">
+
+      <section className="panel-input">
+        <h2>Genera tu landing con IA</h2>
+
+        <form onSubmit={generarWeb}>
+          <textarea
+            placeholder="Describe tu negocio... Ej: Soy maquilladora y quiero una web elegante en tonos rosas."
+            value={descripcion}
+            onChange={(e) => setDescripcion(e.target.value)}
+          ></textarea>
+
+          <button type="submit">Generar Web</button>
+        </form>
+
+        {estado === "cargando" && <p>🌸 Generando tu web bonita...</p>}
+        {error && <p className="error">❌ {error}</p>}
       </section>
 
-      <footer className="input-area">
-        <form className="chat-form" onSubmit={manejarEnvio}>
-          <input
-            type="text"
-            id="mensaje-input"
-            placeholder="Escribe tu prompt para Groq..."
-            autoComplete="off"
-            value={textoInput}
-            onChange={(evento) => setTextoInput(evento.target.value)}
-          />
-          <button type="submit">Enviar</button>
-        </form>
-      </footer>
+      <section className="panel-preview">
+        <h3>Vista previa</h3>
+
+        {estado === "listo" && (
+          <iframe
+            className="preview-frame"
+            srcDoc={htmlGenerado}
+            title="Vista previa generada"
+          ></iframe>
+        )}
+
+        {estado === "idle" && <p>Aún no has generado ninguna web.</p>}
+      </section>
 
     </main>
-  )
+  );
 }
 
-export default ChatArea;
+export default GeneradorWeb;
